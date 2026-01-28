@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLACIUS 88 - Granular Looper</title>
+    <style>
+        :root {
+            --neon-mint: #00ff9d;
+            --deep-purple: #6c5ce7;
+            --bg-dark: #05050a;
+            --panel-bg: #121225;
+            --layer-green: #00cc88;
+            --layer-orange: #ff9966;
+            --layer-pink: #ff66aa;
+            --layer-blue: #66aaff;
+            --layer-purple: #aa66ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: var(--bg-dark); 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            color: white;
+        }
+
+        .pedal {
+            background: var(--panel-bg);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8), inset 0 0 20px rgba(108, 92, 231, 0.2);
+            width: 900px;
+            border: 1px solid #2a2a4a;
+            position: relative;
+        }
+
+        .brand { 
+            text-align: center; 
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .brand h1 { 
+            font-size: 3rem; 
+            letter-spacing: 8px;
+            background: linear-gradient(135deg, var(--neon-mint), var(--deep-purple));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        
+        .looper-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+        
+        .layers-display {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        .layer-indicator {
+            width: 100%;
+            height: 30px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        
+        .layer-indicator.active {
+            animation: layerGlow 2s infinite alternate;
+        }
+        
+        .layer-indicator:nth-child(1).active { animation-delay: 0s; background: var(--layer-green); }
+        .layer-indicator:nth-child(2).active { animation-delay: 0.4s; background: var(--layer-orange); }
+        .layer-indicator:nth-child(3).active { animation-delay: 0.8s; background: var(--layer-pink); }
+        .layer-indicator:nth-child(4).active { animation-delay: 1.2s; background: var(--layer-blue); }
+        .layer-indicator:nth-child(5).active { animation-delay: 1.6s; background: var(--layer-purple); }
+        
+        @keyframes layerGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        .knobs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .knob-container { text-align: center; position: relative; }
+        .knob-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            color: #888;
+        }
+
+        .knob {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #333, #111);
+            border: 4px solid #222;
+            position: relative;
+            cursor: ns-resize;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.4);
+        }
+
+        .knob-dial {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            width: 3px;
+            height: 20px;
+            background: var(--neon-mint);
+            transform-origin: bottom center;
+            border-radius: 2px;
+            box-shadow: 0 0 8px var(--neon-mint);
+        }
+
+        .knob-value {
+            font-size: 0.8rem;
+            color: var(--neon-mint);
+            font-family: monospace;
+        }
+
+        .algo-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .algo-btn {
+            padding: 10px 20px;
+            background: #1a1a35;
+            border: 1px solid #333;
+            color: #777;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .algo-btn.active {
+            color: white;
+            border-color: var(--deep-purple);
+            box-shadow: 0 0 15px rgba(108, 92, 231, 0.4);
+            background: var(--deep-purple);
+        }
+
+        canvas {
+            width: 100%;
+            height: 120px;
+            background: #000;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 1px solid #222;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        button.main-ctrl {
+            padding: 15px 25px;
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        #playBtn { background: var(--neon-mint); color: #000; }
+        #chaosBtn { background: #333; color: white; }
+        #chaosBtn.active { background: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
+        #layerBtn { background: #333; color: white; }
+        #layerBtn.active { background: var(--layer-green); box-shadow: 0 0 15px var(--layer-green); }
+        #clearLayersBtn { background: #333; color: white; }
+        #clearLayersBtn:not(:disabled) { background: #ff4757; }
+        #clearLayersBtn:not(:disabled):hover { background: #ff3742; }
+        
+        .layer-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 10px;
+        }
+        
+        .layer-count {
+            font-size: 0.8rem;
+            color: #888;
+            font-family: monospace;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 0.75rem;
+            color: #555;
+            letter-spacing: 1px;
+        }
+        
+        .layer-params {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+        }
+        
+        .param-slider {
+            flex: 1;
+        }
+        
+        .param-slider label {
+            display: block;
+            font-size: 0.7rem;
+            margin-bottom: 5px;
+            color: #888;
+        }
+        
+        .param-slider input {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .param-slider input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--neon-mint);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="pedal">
+    <div class="brand">
+        <h1>Placius 88</h1>
+        <p style="color: #555; font-size: 0.8rem; letter-spacing: 5px;">GRANULAR LOOPER</p>
+        
+        <div class="looper-info">
+            <div class="layers-display" id="layersDisplay">
+                <div class="layer-indicator" data-layer="1"></div>
+                <div class="layer-indicator" data-layer="2"></div>
+                <div class="layer-indicator" data-layer="3"></div>
+                <div class="layer-indicator" data-layer="4"></div>
+                <div class="layer-indicator" data-layer="5"></div>
+            </div>
+            <div class="layer-count" id="layerCount">Layers: 0/5</div>
+        </div>
+    </div>
+
+    <div class="knobs-grid">
+        <div class="knob-container">
+            <div class="knob-label">Mix</div>
+            <div class="knob" data-knob="mix"><div class="knob-dial"></div></div>
+            <div class="knob-value">50%</div>
+        </div>
+        <div class="knob-container">
+            <div class="knob-label">Time</div>
+            <div class="knob" data-knob="time"><div class="knob-dial"></div></div>
+            <div class="knob-value">350ms</div>
+        </div>
+        <div class="knob-container">
+            <div class="knob-label">Repeats</div>
+            <div class="knob" data-knob="feedback"><div class="knob-dial"></div></div>
+            <div class="knob-value">30%</div>
+        </div>
+        <div class="knob-container">
+            <div class="knob-label">Activity</div>
+            <div class="knob" data-knob="depth"><div class="knob-dial"></div></div>
+            <div class="knob-value">40%</div>
+        </div>
+        <div class="knob-container">
+            <div class="knob-label">Rate</div>
+            <div class="knob" data-knob="rate"><div class="knob-dial"></div></div>
+            <div class="knob-value">2.0Hz</div>
+        </div>
+        <div class="knob-container">
+            <div class="knob-label">Filter</div>
+            <div class="knob" data-knob="tone"><div class="knob-dial"></div></div>
+            <div class="knob-value">3000Hz</div>
+        </div>
+    </div>
+
+    <div class="layer-params">
+        <div class="param-slider">
+            <label for="layerVolume">Layer Volume</label>
+            <input type="range" id="layerVolume" min="0" max="100" value="80">
+        </div>
+        <div class="param-slider">
+            <label for="layerPan">Layer Pan</label>
+            <input type="range" id="layerPan" min="-1" max="1" step="0.1" value="0">
+        </div>
+        <div class="param-slider">
+            <label for="layerPitch">Layer Pitch (±12st)</label>
+            <input type="range" id="layerPitch" min="-12" max="12" step="1" value="0">
+        </div>
+    </div>
+
+    <div class="algo-buttons" id="algoButtons"></div>
+
+    <canvas id="visualizer"></canvas>
+
+    <div class="controls">
+        <button id="playBtn" class="main-ctrl">▶ Start Audio</button>
+        <button id="chaosBtn" class="main-ctrl">🌊 Chaos</button>
+        <button onclick="document.getElementById('audioFile').click()" class="main-ctrl">📁 Load</button>
+        <button id="layerBtn" class="main-ctrl">⭕ Record Layer</button>
+        <button id="clearLayersBtn" class="main-ctrl" disabled>✕ Clear Layers</button>
+        <button id="freezeBtn" class="main-ctrl">❄️ Freeze</button>
+    </div>
+
+    <div class="status" id="status">Warming up vacuum tubes...</div>
+    
+    <input type="file" id="audioFile" accept="audio/*" style="display: none;">
+</div>
+
+<script>
+    class SmoothAudioParam {
+        constructor(initialValue, options = {}) {
+            this.targetValue = initialValue;
+            this.currentValue = initialValue;
+            this.min = options.min || 0;
+            this.max = options.max || 1;
+            this.smoothFactor = options.smoothFactor || 0.15;
+        }
+
+        setTarget(val) {
+            this.targetValue = Math.max(this.min, Math.min(this.max, val));
+        }
+
+        update() {
+            // Плавное приближение к цели (линейная интерполяция)
+            this.currentValue += (this.targetValue - this.currentValue) * this.smoothFactor;
+            return this.currentValue;
+        }
+    }
+
+    class GranularLooper {
+        constructor(audioContext, wetOutput, masterInput) {
+            this.ctx = audioContext;
+            this.wetOutput = wetOutput;
+            this.masterInput = masterInput;
+            this.layers = [];
+            this.maxLayers = 5;
+            this.isRecording = false;
+            this.recordingBuffer = null;
+            this.recorderNode = null;
+            this.recordingLength = 2.0; // секунды
+            this.layerVolume = 0.8;
+            this.layerPan = 0;
+            this.layerPitch = 0;
+            this.isFreeze = false;
+            this.frozenBuffer = null;
+            
+            this.setupRecorder();
+            this.setupEventListeners();
+        }
+        
+        setupRecorder() {
+            // Создаем ScriptProcessorNode для записи
+            const bufferSize = 4096;
+            this.recorderNode = this.ctx.createScriptProcessor(bufferSize, 2, 2);
+            this.recorderNode.onaudioprocess = (e) => {
+                if (!this.isRecording || !this.recordingBuffer) return;
+                
+                const left = e.inputBuffer.getChannelData(0);
+                const right = e.inputBuffer.getChannelData(1);
+                
+                // Копируем данные в буфер
+                for (let i = 0; i < left.length; i++) {
+                    if (this.recordingBuffer.position >= this.recordingBuffer.length) {
+                        this.stopRecording();
+                        break;
+                    }
+                    this.recordingBuffer.left[this.recordingBuffer.position] = left[i];
+                    this.recordingBuffer.right[this.recordingBuffer.position] = right[i];
+                    this.recordingBuffer.position++;
+                }
+            };
+        }
+        
+        setupEventListeners() {
+            document.getElementById('layerVolume').addEventListener('input', (e) => {
+                this.layerVolume = e.target.value / 100;
+                this.updateLayerVolumes();
+            });
+            
+            document.getElementById('layerPan').addEventListener('input', (e) => {
+                this.layerPan = parseFloat(e.target.value);
+                this.updateLayerPans();
+            });
+            
+            document.getElementById('layerPitch').addEventListener('input', (e) => {
+                this.layerPitch = parseInt(e.target.value);
+                this.updateLayerPitches();
+            });
+            
+            document.getElementById('freezeBtn').addEventListener('click', () => {
+                this.toggleFreeze();
+            });
+        }
+        
+        startRecording() {
+            if (this.layers.length >= this.maxLayers) {
+                alert('Maximum 5 layers reached! Clear some layers first.');
+                return;
+            }
+            
+            if (this.isRecording) return;
+            
+            this.isRecording = true;
+            
+            // Создаем буфер для записи
+            const sampleRate = this.ctx.sampleRate;
+            const length = Math.floor(this.recordingLength * sampleRate);
+            
+            this.recordingBuffer = {
+                left: new Float32Array(length),
+                right: new Float32Array(length),
+                length: length,
+                position: 0,
+                sampleRate: sampleRate
+            };
+            
+            // Подключаем wet выход к рекордеру
+            this.wetOutput.connect(this.recorderNode);
+            this.recorderNode.connect(this.ctx.destination); // Нужно для работы
+            
+            document.getElementById('layerBtn').classList.add('active');
+            document.getElementById('status').textContent = 'Recording layer...';
+        }
+        
+        stopRecording() {
+            if (!this.isRecording) return;
+            
+            this.isRecording = false;
+            
+            // Отключаем рекордер
+            this.wetOutput.disconnect(this.recorderNode);
+            this.recorderNode.disconnect();
+            
+            // Создаем AudioBuffer из записанных данных
+            const buffer = this.ctx.createBuffer(2, this.recordingBuffer.position, this.ctx.sampleRate);
+            buffer.getChannelData(0).set(this.recordingBuffer.left.subarray(0, this.recordingBuffer.position));
+            buffer.getChannelData(1).set(this.recordingBuffer.right.subarray(0, this.recordingBuffer.position));
+            
+            // Добавляем слой
+            this.addLayer(buffer);
+            
+            this.recordingBuffer = null;
+            document.getElementById('layerBtn').classList.remove('active');
+            document.getElementById('status').textContent = 'Layer recorded!';
+        }
+        
+        addLayer(buffer) {
+            if (this.layers.length >= this.maxLayers) {
+                // Удаляем самый старый слой
+                this.removeLayer(0);
+            }
+            
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+            
+            // Создаем гранулярную обработку для слоя
+            const grainNode = this.createGranularProcessor(buffer);
+            source.connect(grainNode.input);
+            
+            // Цепочка для слоя
+            const gain = this.ctx.createGain();
+            gain.gain.value = this.layerVolume;
+            
+            const panner = this.ctx.createStereoPanner();
+            panner.pan.value = this.layerPan;
+            
+            grainNode.output.connect(gain);
+            gain.connect(panner);
+            panner.connect(this.masterInput);
+            
+            const layer = {
+                source: source,
+                grainNode: grainNode,
+                gain: gain,
+                panner: panner,
+                buffer: buffer,
+                index: this.layers.length + 1
+            };
+            
+            this.layers.push(layer);
+            source.start();
+            
+            this.updateLayerIndicators();
+            document.getElementById('clearLayersBtn').disabled = false;
+        }
+        
+        createGranularProcessor(buffer) {
+            // Простой гранулярный процессор для слоя
+            const input = this.ctx.createGain();
+            const output = this.ctx.createGain();
+            
+            // Задержка для гранулярного эффекта
+            const delay = this.ctx.createDelay(2.0);
+            delay.delayTime.value = 0.1;
+            
+            // Обратная связь для гранулярного эффекта
+            const feedback = this.ctx.createGain();
+            feedback.gain.value = 0.3;
+            
+            // Фильтр
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 2000;
+            filter.Q.value = 1.0;
+            
+            // Подключаем
+            input.connect(delay);
+            delay.connect(filter);
+            filter.connect(feedback);
+            feedback.connect(delay);
+            filter.connect(output);
+            
+            // LFO для модуляции задержки
+            const lfo = this.ctx.createOscillator();
+            const lfoGain = this.ctx.createGain();
+            lfo.frequency.value = 0.5;
+            lfoGain.gain.value = 0.01;
+            lfo.connect(lfoGain);
+            lfoGain.connect(delay.delayTime);
+            lfo.start();
+            
+            return {
+                input: input,
+                output: output,
+                delay: delay,
+                filter: filter,
+                lfo: lfo
+            };
+        }
+        
+        removeLayer(index) {
+            if (index < 0 || index >= this.layers.length) return;
+            
+            const layer = this.layers[index];
+            layer.source.stop();
+            layer.source.disconnect();
+            
+            if (layer.grainNode.lfo) {
+                layer.grainNode.lfo.stop();
+            }
+            
+            this.layers.splice(index, 1);
+            this.updateLayerIndicators();
+        }
+        
+        clearLayers() {
+            this.layers.forEach(layer => {
+                layer.source.stop();
+                layer.source.disconnect();
+                if (layer.grainNode.lfo) {
+                    layer.grainNode.lfo.stop();
+                }
+            });
+            this.layers = [];
+            this.updateLayerIndicators();
+            document.getElementById('clearLayersBtn').disabled = true;
+            document.getElementById('status').textContent = 'All layers cleared';
+        }
+        
+        updateLayerIndicators() {
+            const indicators = document.querySelectorAll('.layer-indicator');
+            indicators.forEach((indicator, index) => {
+                if (index < this.layers.length) {
+                    indicator.classList.add('active');
+                } else {
+                    indicator.classList.remove('active');
+                }
+            });
+            
+            document.getElementById('layerCount').textContent = `Layers: ${this.layers.length}/5`;
+        }
+        
+        updateLayerVolumes() {
+            this.layers.forEach(layer => {
+                layer.gain.gain.setTargetAtTime(this.layerVolume, this.ctx.currentTime, 0.1);
+            });
+        }
+        
+        updateLayerPans() {
+            this.layers.forEach(layer => {
+                layer.panner.pan.setTargetAtTime(this.layerPan, this.ctx.currentTime, 0.1);
+            });
+        }
+        
+        updateLayerPitches() {
+            this.layers.forEach(layer => {
+                const semitoneRatio = Math.pow(2, this.layerPitch / 12);
+                layer.source.playbackRate.setTargetAtTime(semitoneRatio, this.ctx.currentTime, 0.1);
+            });
+        }
+        
+        toggleFreeze() {
+            this.isFreeze = !this.isFreeze;
+            const btn = document.getElementById('freezeBtn');
+            
+            if (this.isFreeze) {
+                // Замораживаем текущий wet сигнал
+                btn.style.background = '#66aaff';
+                btn.innerHTML = '❄️ Frozen';
+                this.freezeWetSignal();
+            } else {
+                btn.style.background = '#333';
+                btn.innerHTML = '❄️ Freeze';
+                this.unfreezeWetSignal();
+            }
+        }
+        
+        freezeWetSignal() {
+            // Создаем буфер из текущего wet сигнала
+            const duration = 2.0;
+            const sampleRate = this.ctx.sampleRate;
+            const length = Math.floor(duration * sampleRate);
+            
+            // Для простоты создадим статичный буфер
+            this.frozenBuffer = this.ctx.createBuffer(1, length, sampleRate);
+            const data = this.frozenBuffer.getChannelData(0);
+            
+            for (let i = 0; i < length; i++) {
+                // Простой синтезированный сигнал
+                const t = i / sampleRate;
+                data[i] = Math.sin(2 * Math.PI * 220 * t) * 0.3 * Math.exp(-t * 2);
+            }
+            
+            // Добавляем как слой
+            this.addLayer(this.frozenBuffer);
+        }
+        
+        unfreezeWetSignal() {
+            // Ничего не делаем, слой остается
+        }
+    }
+
+    class PlaciusProcessor {
+        constructor() {
+            this.ctx = null;
+            this.params = {
+                mix: new SmoothAudioParam(50, { min: 0, max: 100 }),
+                time: new SmoothAudioParam(350, { min: 20, max: 1500 }),
+                feedback: new SmoothAudioParam(30, { min: 0, max: 95 }),
+                depth: new SmoothAudioParam(40, { min: 0, max: 100 }),
+                rate: new SmoothAudioParam(2.0, { min: 0.1, max: 10 }),
+                tone: new SmoothAudioParam(3000, { min: 200, max: 12000 })
+            };
+            
+            this.currentAlgo = 'dreamscape';
+            this.isPlaying = false;
+            this.chaos = false;
+            this.audioBuffer = null;
+            this.nodes = {};
+            this.looper = null;
+            
+            this.init();
+        }
+
+        init() {
+            this.renderAlgos();
+            this.setupKnobs();
+            this.setupEventListeners();
+            this.animate();
+        }
+
+        setupKnobs() {
+            document.querySelectorAll('.knob').forEach(el => {
+                const id = el.dataset.knob;
+                let isDragging = false;
+                let lastY = 0;
+
+                el.addEventListener('mousedown', e => {
+                    isDragging = true;
+                    lastY = e.clientY;
+                    document.body.style.cursor = 'ns-resize';
+                });
+
+                window.addEventListener('mousemove', e => {
+                    if (!isDragging) return;
+                    const delta = lastY - e.clientY;
+                    lastY = e.clientY;
+                    
+                    const p = this.params[id];
+                    const range = p.max - p.min;
+                    const step = range / 200;
+                    p.setTarget(p.targetValue + (delta * step));
+                });
+
+                window.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    document.body.style.cursor = 'default';
+                });
+            });
+        }
+
+        animate() {
+            Object.keys(this.params).forEach(key => {
+                const val = this.params[key].update();
+                this.updateKnobUI(key, val);
+                this.updateAudioNode(key, val);
+            });
+
+            this.drawVisualizer();
+            requestAnimationFrame(() => this.animate());
+        }
+
+        updateKnobUI(id, val) {
+            const el = document.querySelector(`[data-knob="${id}"]`);
+            const valEl = el.parentElement.querySelector('.knob-value');
+            const dial = el.querySelector('.knob-dial');
+            
+            const p = this.params[id];
+            const percent = (val - p.min) / (p.max - p.min);
+            const deg = -135 + (percent * 270);
+            
+            dial.style.transform = `translateX(-50%) rotate(${deg}deg)`;
+            
+            if (id === 'tone') valEl.textContent = Math.round(val) + 'Hz';
+            else if (id === 'time') valEl.textContent = Math.round(val) + 'ms';
+            else if (id === 'rate') valEl.textContent = val.toFixed(1) + 'Hz';
+            else valEl.textContent = Math.round(val) + '%';
+        }
+
+        updateAudioNode(id, val) {
+            if (!this.isPlaying || !this.ctx) return;
+            const now = this.ctx.currentTime;
+
+            try {
+                switch(id) {
+                    case 'mix':
+                        this.nodes.wet.gain.setTargetAtTime(val/100, now, 0.05);
+                        this.nodes.dry.gain.setTargetAtTime(1 - (val/100), now, 0.05);
+                        break;
+                    case 'tone':
+                        if (this.nodes.filter) this.nodes.filter.frequency.setTargetAtTime(val, now, 0.05);
+                        break;
+                    case 'time':
+                        if (this.nodes.delay) this.nodes.delay.delayTime.setTargetAtTime(val/1000, now, 0.1);
+                        break;
+                    case 'feedback':
+                        if (this.nodes.fbGain) this.nodes.fbGain.gain.setTargetAtTime(val/100, now, 0.05);
+                        break;
+                }
+            } catch(e) {}
+        }
+
+        async startAudio() {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            if (this.isPlaying) {
+                this.stop();
+                return;
+            }
+
+            this.nodes.dry = this.ctx.createGain();
+            this.nodes.wet = this.ctx.createGain();
+            this.nodes.master = this.ctx.createGain();
+            this.nodes.analyser = this.ctx.createAnalyser();
+            
+            this.nodes.delay = this.ctx.createDelay(2.0);
+            this.nodes.fbGain = this.ctx.createGain();
+            this.nodes.filter = this.ctx.createBiquadFilter();
+            
+            this.nodes.filter.type = 'lowpass';
+            this.nodes.filter.Q.value = 1.5;
+
+            // Инициализируем лупер
+            this.looper = new GranularLooper(this.ctx, this.nodes.filter, this.nodes.master);
+
+            if (this.audioBuffer) {
+                this.nodes.source = this.ctx.createBufferSource();
+                this.nodes.source.buffer = this.audioBuffer;
+                this.nodes.source.loop = true;
+            } else {
+                this.nodes.source = this.ctx.createOscillator();
+                this.nodes.source.type = 'triangle';
+                this.nodes.source.frequency.value = 110;
+                const lfo = this.ctx.createOscillator();
+                const lfoGain = this.ctx.createGain();
+                lfo.frequency.value = 0.5;
+                lfoGain.gain.value = 50;
+                lfo.connect(lfoGain);
+                lfoGain.connect(this.nodes.source.frequency);
+                lfo.start();
+            }
+
+            this.nodes.source.connect(this.nodes.dry);
+            this.nodes.source.connect(this.nodes.wet);
+            
+            this.nodes.wet.connect(this.nodes.delay);
+            this.nodes.delay.connect(this.nodes.filter);
+            this.nodes.filter.connect(this.nodes.fbGain);
+            this.nodes.fbGain.connect(this.nodes.delay);
+            this.nodes.filter.connect(this.nodes.master);
+            
+            this.nodes.dry.connect(this.nodes.master);
+            this.nodes.master.connect(this.nodes.analyser);
+            this.nodes.analyser.connect(this.ctx.destination);
+
+            this.nodes.source.start();
+            this.isPlaying = true;
+            document.getElementById('playBtn').textContent = '■ Stop';
+            document.getElementById('status').textContent = 'Signal processing active...';
+        }
+
+        stop() {
+            if (this.nodes.source) this.nodes.source.stop();
+            if (this.looper) {
+                this.looper.clearLayers();
+            }
+            this.isPlaying = false;
+            document.getElementById('playBtn').textContent = '▶ Start Audio';
+            document.getElementById('status').textContent = 'Processor bypassed.';
+        }
+
+        drawVisualizer() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            if (!this.nodes.analyser) return;
+
+            const bufferLength = this.nodes.analyser.frequencyBinCount;
+            const data = new Uint8Array(bufferLength);
+            this.nodes.analyser.getByteTimeDomainData(data);
+
+            ctx.fillStyle = '#05050a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Рисуем слои на визуализаторе
+            if (this.looper && this.looper.layers.length > 0) {
+                const layerHeight = canvas.height / (this.looper.layers.length + 1);
+                this.looper.layers.forEach((layer, index) => {
+                    ctx.fillStyle = `rgba(${index * 50 + 100}, ${index * 30 + 150}, 255, 0.1)`;
+                    ctx.fillRect(0, index * layerHeight, canvas.width, layerHeight);
+                });
+            }
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = this.chaos ? '#e74c3c' : '#00ff9d';
+            ctx.beginPath();
+
+            const sliceWidth = canvas.width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = data[i] / 128.0;
+                const y = v * canvas.height / 2;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+                x += sliceWidth;
+            }
+
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+        }
+
+        renderAlgos() {
+            const container = document.getElementById('algoButtons');
+            ['Dreamscape', 'Mosaic', 'Haze', 'Stria'].forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = 'algo-btn' + (name.toLowerCase() === this.currentAlgo ? ' active' : '');
+                btn.textContent = name;
+                btn.onclick = () => {
+                    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.currentAlgo = name.toLowerCase();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        setupEventListeners() {
+            document.getElementById('playBtn').onclick = () => this.startAudio();
+            document.getElementById('chaosBtn').onclick = (e) => {
+                this.chaos = !this.chaos;
+                e.target.classList.toggle('active');
+                e.target.textContent = this.chaos ? '🌊 Chaos: ON' : '🌊 Chaos: OFF';
+            };
+            
+            document.getElementById('audioFile').onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const arrayBuffer = await file.arrayBuffer();
+                if (!this.ctx) this.ctx = new AudioContext();
+                this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+                document.getElementById('status').textContent = `Loaded: ${file.name}`;
+            };
+            
+            // Кнопки лупера
+            document.getElementById('layerBtn').addEventListener('mousedown', () => {
+                if (this.looper) {
+                    this.looper.startRecording();
+                }
+            });
+            
+            document.getElementById('layerBtn').addEventListener('mouseup', () => {
+                if (this.looper) {
+                    this.looper.stopRecording();
+                }
+            });
+            
+            // Для touch устройств
+            document.getElementById('layerBtn').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (this.looper) {
+                    this.looper.startRecording();
+                }
+            });
+            
+            document.getElementById('layerBtn').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (this.looper) {
+                    this.looper.stopRecording();
+                }
+            });
+            
+            document.getElementById('clearLayersBtn').addEventListener('click', () => {
+                if (this.looper) {
+                    this.looper.clearLayers();
+                }
+            });
+        }
+    }
+
+    window.onload = () => new PlaciusProcessor();
+</script>
+</body>
+</html>
