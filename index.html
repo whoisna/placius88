@@ -650,34 +650,48 @@ class PlaciusProcessor {
 
     updateAudioNode(id, val) {
         if (!this.isPlaying || !this.ctx) return;
+        
         const now = this.ctx.currentTime;
 
         try {
             switch(id) {
                 case 'mix':
-                    this.nodes.wet.gain.setTargetAtTime(val/100, now, 0.05);
-                    this.nodes.dry.gain.setTargetAtTime(1 - (val/100), now, 0.05);
+                    if (this.nodes.wet && this.nodes.dry) {
+                        this.nodes.wet.gain.setTargetAtTime(val/100, now, 0.05);
+                        this.nodes.dry.gain.setTargetAtTime(1 - (val/100), now, 0.05);
+                    }
                     break;
                 case 'tone':
-                    if (this.nodes.filter) this.nodes.filter.frequency.setTargetAtTime(val, now, 0.05);
+                    if (this.nodes.filter && this.nodes.filter.frequency) {
+                        this.nodes.filter.frequency.setTargetAtTime(val, now, 0.05);
+                    }
                     break;
                 case 'time':
-                    if (this.nodes.delay) this.nodes.delay.delayTime.setTargetAtTime(val/1000, now, 0.1);
+                    if (this.nodes.delay && this.nodes.delay.delayTime) {
+                        this.nodes.delay.delayTime.setTargetAtTime(val/1000, now, 0.1);
+                    }
                     break;
                 case 'feedback':
-                    if (this.nodes.fbGain) {
+                    if (this.nodes.fbGain && this.nodes.fbGain.gain) {
                         // Ограничиваем feedback для стабильности
                         const safeFeedback = Math.min(val / 100, 0.85);
                         this.nodes.fbGain.gain.setTargetAtTime(safeFeedback, now, 0.05);
                     }
                     break;
             }
-        } catch(e) {}
+        } catch(e) {
+            console.error('Error updating audio node:', e);
+        }
     }
 
     async startAudio() {
         if (!this.ctx) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        // Возобновляем контекст если он приостановлен
+        if (this.ctx.state === 'suspended') {
+            await this.ctx.resume();
         }
         
         if (this.isPlaying) {
@@ -690,12 +704,14 @@ class PlaciusProcessor {
         this.nodes.master = this.ctx.createGain();
         this.nodes.analyser = this.ctx.createAnalyser();
         
+        this.nodes.analyser.fftSize = 2048;
+        
         this.nodes.delay = this.ctx.createDelay(2.0);
         this.nodes.fbGain = this.ctx.createGain();
         this.nodes.filter = this.ctx.createBiquadFilter();
         
         this.nodes.filter.type = 'lowpass';
-        this.nodes.filter.Q.value = 1.2; // Снижено для более мягкого звука
+        this.nodes.filter.Q.value = 1.2;
         
         // Компрессор для стабилизации
         this.nodes.compressor = this.ctx.createDynamicsCompressor();
@@ -718,7 +734,7 @@ class PlaciusProcessor {
             this.nodes.source.frequency.value = 110;
             const lfo = this.ctx.createOscillator();
             const lfoGain = this.ctx.createGain();
-            lfo.frequency.value = 0.4; // Медленнее для стабильности
+            lfo.frequency.value = 0.4;
             lfoGain.gain.value = 40;
             lfo.connect(lfoGain);
             lfoGain.connect(this.nodes.source.frequency);
@@ -739,10 +755,14 @@ class PlaciusProcessor {
         this.nodes.master.connect(this.nodes.analyser);
         this.nodes.analyser.connect(this.ctx.destination);
 
-        // Применяем начальные значения параметров
-        Object.keys(this.params).forEach(id => {
-            this.updateAudioNode(id, this.params[id].value);
-        });
+        // Устанавливаем начальные значения СРАЗУ (без анимации)
+        const now = this.ctx.currentTime;
+        this.nodes.wet.gain.value = this.params.mix.value / 100;
+        this.nodes.dry.gain.value = 1 - (this.params.mix.value / 100);
+        this.nodes.filter.frequency.value = this.params.tone.value;
+        this.nodes.delay.delayTime.value = this.params.time.value / 1000;
+        this.nodes.fbGain.gain.value = Math.min(this.params.feedback.value / 100, 0.85);
+        this.nodes.master.gain.value = 0.8;
 
         this.nodes.source.start();
         this.isPlaying = true;
@@ -751,13 +771,32 @@ class PlaciusProcessor {
     }
 
     stop() {
-        if (this.nodes.source) this.nodes.source.stop();
-        if (this.looper) {
-            this.looper.clearLayers();
+        try {
+            if (this.nodes.source) {
+                this.nodes.source.stop();
+                this.nodes.source.disconnect();
+            }
+            if (this.looper) {
+                this.looper.clearLayers();
+            }
+            
+            // Отключаем все ноды
+            Object.keys(this.nodes).forEach(key => {
+                if (this.nodes[key] && this.nodes[key].disconnect) {
+                    try {
+                        this.nodes[key].disconnect();
+                    } catch(e) {}
+                }
+            });
+            
+            this.nodes = {};
+            this.isPlaying = false;
+            
+            document.getElementById('playBtn').textContent = '▶ Start Audio';
+            document.getElementById('status').textContent = 'Processor bypassed.';
+        } catch(e) {
+            console.error('Error stopping audio:', e);
         }
-        this.isPlaying = false;
-        document.getElementById('playBtn').textContent = '▶ Start Audio';
-        document.getElementById('status').textContent = 'Processor bypassed.';
     }
 
     drawVisualizer() {
@@ -826,10 +865,30 @@ class PlaciusProcessor {
         document.getElementById('audioFile').onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const arrayBuffer = await file.arrayBuffer();
-            if (!this.ctx) this.ctx = new AudioContext();
-            this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-            document.getElementById('status').textContent = `Loaded: ${file.name}`;
+            
+            try {
+                // Останавливаем текущее воспроизведение если идёт
+                const wasPlaying = this.isPlaying;
+                if (wasPlaying) {
+                    this.stop();
+                }
+                
+                const arrayBuffer = await file.arrayBuffer();
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+                document.getElementById('status').textContent = `Loaded: ${file.name}`;
+                
+                // Автоматически запускаем если было воспроизведение
+                if (wasPlaying) {
+                    setTimeout(() => this.startAudio(), 100);
+                }
+            } catch (error) {
+                console.error('Error loading audio file:', error);
+                document.getElementById('status').textContent = 'Error loading file';
+            }
         };
         
         // Кнопки лупера - mouse events
